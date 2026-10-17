@@ -10,3 +10,5 @@ vivado_shared_mac_gui/
 *.log
 *.pb
 *.backup.*
+
+data/MNIST/raw/
