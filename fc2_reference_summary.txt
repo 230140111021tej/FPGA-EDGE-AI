@@ -1,0 +1,5 @@
+inputs=64
+outputs=10
+score_min=-24674
+score_max=40405
+predicted_class=6

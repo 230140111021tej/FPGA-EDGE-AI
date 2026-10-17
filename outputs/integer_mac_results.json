@@ -1,0 +1,22 @@
+{
+  "input_shape": [
+    128,
+    1568
+  ],
+  "weight_shape": [
+    64,
+    1568
+  ],
+  "activation_scale": 0.025181416904225068,
+  "weight_scale": 0.0028914492430649405,
+  "accumulator_scale": 7.281078884702427e-05,
+  "accumulator_min": -376198,
+  "activation_calibration_samples": 512,
+  "activation_calibration_max": 6.421261310577393,
+  "accumulator_max": 294230,
+  "accumulator_fits_int32": true,
+  "max_absolute_output_error": 0.1203305721282959,
+  "mean_absolute_output_error": 0.02417369745671749,
+  "rmse": 0.03029268980026245,
+  "sample_count": 128
+}

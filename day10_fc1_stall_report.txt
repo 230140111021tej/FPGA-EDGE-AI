@@ -1,0 +1,247 @@
+DAY 10 FC1 STALL INSPECTION
+Generated: 2026-10-17T19:18:29
+
+===== rtl\fc1_full_layer.v =====
+   2: module fc1_full_layer #(
+   3:  parameter INPUT_FILE="rom/fc1_pool2_input_hex.mem",
+   4:  parameter WEIGHT_FILE="rom/fc1_weights_int8_hex.mem",
+   5:  parameter BIAS_FILE="rom/fc1_bias_int32_hex.mem"
+   7:  input wire clk,input wire rst,input wire start,
+   8:  output reg busy,output reg done,
+   9:  output reg [5:0] out_addr,output reg signed [31:0] out_acc,output reg out_valid
+  16:  reg mac_start;
+  17:  wire mac_busy,mac_done;
+  18:  wire signed [31:0] mac_acc;
+  19:  integer neuron_index,k;
+  20:  integer j;
+  26:  fc1_shared_mac mac(.clk(clk),.rst(rst),.start(mac_start),
+  28:   .acc(mac_acc),.busy(mac_busy),.done(mac_done));
+  29:  always @(posedge clk) begin
+  31:    busy<=0; done<=0; out_addr<=0; out_acc<=0; out_valid<=0;
+  32:    neuron_index<=0; input_flat<=0; weight_flat<=0; bias_reg<=0; mac_start<=0;
+  34:    done<=0; out_valid<=0; mac_start<=0;
+  35:    if (start && !busy) begin
+  36:     busy<=1; neuron_index<=0;
+  40:     mac_start<=1;
+  41:    end else if (busy && mac_done) begin
+  42:     out_addr<=neuron_index;
+  43:     out_acc<=mac_acc;
+  44:     out_valid<=1;
+  45:     if (neuron_index==63) begin
+  46:      busy<=0; done<=1;
+  48:      neuron_index<=neuron_index+1;
+  49:      for (j=0;j<1568;j=j+1) weight_flat[j*8 +: 8] <= weights[(neuron_index+1)*1568+j];
+  50:      bias_reg<=biases[neuron_index+1];
+  51:      mac_start<=1;
+  56: endmodule
+
+===== rtl\fc1_shared_mac.v =====
+   2: module fc1_shared_mac(
+   3:  input wire clk,
+   4:  input wire rst,
+   5:  input wire start,
+   6:  input wire [12543:0] inputs_flat,
+   7:  input wire [12543:0] weights_flat,
+   8:  input wire signed [31:0] bias,
+   9:  output reg signed [31:0] acc,
+  10:  output reg busy,
+  11:  output reg done
+  13:  reg [10:0] index;
+  18:  always @(posedge clk) begin
+  20:    index<=0; p<=0; w<=0; product<=0; sum<=0; acc<=0; busy<=0; done<=0;
+  22:    done<=0;
+  23:    if (start && !busy) begin
+  24:     index<=0; sum<=bias; busy<=1;
+  25:    end else if (busy) begin
+  26:     p={1'b0,inputs_flat[index*8 +: 8]};
+  27:     w=$signed(weights_flat[index*8 +: 8]);
+  30:     if (index==1567) begin
+  32:      busy<=0;
+  33:      done<=1;
+  34:     end else index<=index+1'b1;
+  38: endmodule
+
+===== rtl\fc1_requantize.v =====
+   2: module fc1_requantize(
+   3:  input wire clk,input wire rst,input wire in_valid,input wire signed [31:0] in_acc,
+   4:  output reg out_valid,output reg [7:0] out_data
+  10:  always @(posedge clk) begin
+  12:    out_valid<=0; out_data<=0; product_rounded<=0; scaled<=0;
+  14:    out_valid<=in_valid;
+  15:    if (in_valid) begin
+  26: endmodule
+
+===== rtl\cnn_integrated_sim_top.v =====
+   2: module cnn_integrated_sim_top(
+   3:  input wire clk,input wire rst,input wire start,
+   4:  output reg busy,output reg done,
+   5:  output reg [3:0] predicted_class,
+   6:  output reg scores_valid,
+   7:  output reg signed [31:0] score0,score1,score2,score3,score4,
+   8:  output reg signed [31:0] score5,score6,score7,score8,score9
+  10:  localparam C1_COUNT=12544;
+  11:  localparam C2_COUNT=6272;
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  19:  wire c1_busy,c1_done,c1_valid;
+  23:  wire c1_act_valid;
+  25:  wire c2_busy,c2_done,c2_valid;
+  29:  wire c2_act_valid;
+  31:  wire f1_busy,f1_done,f1_valid;
+  34:  wire f1_act_valid;
+  36:  wire f2_busy,f2_done,f2_valid;
+  44:  integer phase,wait_count;
+  45:  integer f,y,x,base,mx;
+  46:  integer i;
+  48:  integer best_class;
+  52:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+  53:   .out_addr(c1_addr),.out_filter(c1_filter),.out_acc(c1_acc),.out_valid(c1_valid)
+  55:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+  56:   .out_valid(c1_act_valid),.out_activation(c1_act));
+  59:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+  60:   .out_addr(c2_addr),.out_filter(c2_filter),.out_acc(c2_acc),.out_valid(c2_valid)
+  62:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+  63:   .out_valid(c2_act_valid),.out_data(c2_act));
+  65:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  66:   .out_addr(f1_addr),.out_acc(f1_acc),.out_valid(f1_valid));
+  67:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  68:   .out_valid(f1_act_valid),.out_data(f1_act));
+  70:  fc2_full_layer f2(.clk(clk),.rst(rst),.start(f2_start),.busy(f2_busy),.done(f2_done),
+  71:   .out_addr(f2_addr),.out_score(f2_score),.out_valid(f2_valid));
+  73:  always @(posedge clk) begin
+  76:    if(c1_valid) c1_addr_d<=c1_addr;
+  77:    if(c2_valid) c2_addr_d<=c2_addr;
+  78:    if(f1_valid) f1_addr_d<=f1_addr;
+  79:    if(f2_valid) f2_addr_d<=f2_addr;
+  80:    if(c1_act_valid) c1_acts[c1_addr_d]<=c1_act;
+  81:    if(c2_act_valid) c2_acts[c2_addr_d]<=c2_act;
+  82:    if(f1_act_valid) fc1_acts[f1_addr_d]<=f1_act;
+  83:    if(f2_valid) scores[f2_addr]<=f2_score;
+  89:  // their input memories before each subsequent layer is started.
+  90:  always @(posedge clk) begin
+  92:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+  95:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+  96:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+  98:    done<=0;scores_valid<=0;
+  99:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 100:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 102:     case(phase)
+ 103:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 104:      2: if(wait_count>0) wait_count<=wait_count-1;
+ 119:          phase<=3;c2_start<=1;
+ 121:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 122:      4: if(wait_count>0) wait_count<=wait_count-1;
+ 137:          phase<=5;f1_start<=1;
+ 139:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+ 140:      6: if(wait_count>0) wait_count<=wait_count-1;
+ 143:          phase<=7;f2_start<=1;
+ 145:      7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 146:      8: if(wait_count>0) wait_count<=wait_count-1;
+ 153:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+ 155:      default: begin end
+ 156:     endcase
+ 160: endmodule
+
+===== rtl\cnn_integrated_fc2_hw_top.v =====
+   2: module cnn_integrated_fc2_hw_top(
+   3:  input wire clk,input wire rst,input wire start,
+   4:  output reg busy,output reg done,
+   5:  output reg [3:0] predicted_class,
+   6:  output reg scores_valid,
+   7:  output reg signed [31:0] score0,score1,score2,score3,score4,
+   8:  output reg signed [31:0] score5,score6,score7,score8,score9
+  10:  localparam C1_COUNT=12544;
+  11:  localparam C2_COUNT=6272;
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  22:  integer f2_transfer_index;
+  23:  wire c1_busy,c1_done,c1_valid;
+  27:  wire c1_act_valid;
+  29:  wire c2_busy,c2_done,c2_valid;
+  33:  wire c2_act_valid;
+  35:  wire f1_busy,f1_done,f1_valid;
+  38:  wire f1_act_valid;
+  40:  wire f2_busy,f2_done,f2_valid;
+  48:  integer phase,wait_count;
+  49:  integer f,y,x,base,mx;
+  50:  integer i;
+  52:  integer best_class;
+  56:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+  57:   .out_addr(c1_addr),.out_filter(c1_filter),.out_acc(c1_acc),.out_valid(c1_valid)
+  59:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+  60:   .out_valid(c1_act_valid),.out_activation(c1_act));
+  63:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+  64:   .out_addr(c2_addr),.out_filter(c2_filter),.out_acc(c2_acc),.out_valid(c2_valid)
+  66:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+  67:   .out_valid(c2_act_valid),.out_data(c2_act));
+  69:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  70:   .out_addr(f1_addr),.out_acc(f1_acc),.out_valid(f1_valid));
+  71:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  72:   .out_valid(f1_act_valid),.out_data(f1_act));
+  75:   .clk(clk),.rst(rst),.start(f2_start),
+  77:   .busy(f2_busy),.done(f2_done),.out_addr(f2_addr),.out_score(f2_score),.out_valid(f2_valid));
+  79:  always @(posedge clk) begin
+  82:    if(c1_valid) c1_addr_d<=c1_addr;
+  83:    if(c2_valid) c2_addr_d<=c2_addr;
+  84:    if(f1_valid) f1_addr_d<=f1_addr;
+  85:    if(f2_valid) f2_addr_d<=f2_addr;
+  86:    if(c1_act_valid) c1_acts[c1_addr_d]<=c1_act;
+  87:    if(c2_act_valid) c2_acts[c2_addr_d]<=c2_act;
+  88:    if(f1_act_valid) fc1_acts[f1_addr_d]<=f1_act;
+  89:    if(f2_valid) scores[f2_addr]<=f2_score;
+  95:  // their input memories before each subsequent layer is started.
+  96:  always @(posedge clk) begin
+  98:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+ 101:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 102:     f2_input_we<=0;f2_input_addr<=0;f2_input_data<=0;f2_transfer_index<=0;
+ 103:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+ 105:    done<=0;scores_valid<=0;
+ 106:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 109:     f2_input_we<=0;f2_input_addr<=0;f2_input_data<=0;f2_transfer_index<=0;
+ 110:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 112:     case(phase)
+ 113:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 114:      2: if(wait_count>0) wait_count<=wait_count-1;
+ 129:          phase<=3;c2_start<=1;
+ 131:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 132:      4: if(wait_count>0) wait_count<=wait_count-1;
+ 147:          phase<=5;f1_start<=1;
+ 149:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+ 150:       6: if(wait_count>0) wait_count<=wait_count-1;
+ 151:          else begin f2_transfer_index<=0;phase<=9;end
+ 154:           f2_input_addr<=f2_transfer_index[5:0];
+ 155:           f2_input_data<=fc1_acts[f2_transfer_index];
+ 156:           if(f2_transfer_index==63) phase<=10;
+ 157:           else f2_transfer_index<=f2_transfer_index+1;
+ 159:      10: begin f2_start<=1;phase<=7;end
+ 160:       7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 161:      8: if(wait_count>0) wait_count<=wait_count-1;
+ 168:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+ 170:      default: begin end
+ 171:     endcase
+ 175: endmodule
+
+===== FC1 SIGNAL DECLARATIONS (TOP) =====
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  31:  wire f1_busy,f1_done,f1_valid;
+  33:  wire signed [31:0] f1_acc;
+  44:  integer phase,wait_count;
+  65:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  66:   .out_addr(f1_addr),.out_acc(f1_acc),.out_valid(f1_valid));
+  67:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  78:    if(f1_valid) f1_addr_d<=f1_addr;
+  95:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+  96:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+  99:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 100:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 102:     case(phase)
+ 103:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 104:      2: if(wait_count>0) wait_count<=wait_count-1;
+ 119:          phase<=3;c2_start<=1;
+ 121:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 122:      4: if(wait_count>0) wait_count<=wait_count-1;
+ 137:          phase<=5;f1_start<=1;
+ 139:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+ 140:      6: if(wait_count>0) wait_count<=wait_count-1;
+ 143:          phase<=7;f2_start<=1;
+ 145:      7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 146:      8: if(wait_count>0) wait_count<=wait_count-1;
+ 153:          scores_valid<=1;done<=1;busy<=0;phase<=0;

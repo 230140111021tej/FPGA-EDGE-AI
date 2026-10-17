@@ -1,0 +1,11 @@
+{
+  "seed": 42,
+  "total_parameters": 105866,
+  "reference_image_count": 16,
+  "correct_reference_predictions": 16,
+  "output_shape": [
+    16,
+    10
+  ],
+  "reference_file": "outputs/golden_vectors.pt"
+}

@@ -1,0 +1,46 @@
+{
+  "method": "integer MACs with per-layer symmetric INT8 weights and unsigned 8-bit activations",
+  "calibration_samples": 512,
+  "evaluation_samples": 10000,
+  "activation_maxima": {
+    "pool1": 2.1746950149536133,
+    "pool2": 6.421261310577393,
+    "fc1_relu": 27.940956115722656
+  },
+  "activation_scales": {
+    "input": 0.00392156862745098,
+    "pool1": 0.008528215744916131,
+    "pool2": 0.025181416904225068,
+    "fc1_relu": 0.10957237692440257
+  },
+  "weight_scales": {
+    "features.0": 0.0059380850454015055,
+    "features.3": 0.004132752812753512,
+    "classifier.1": 0.0028914492430649405,
+    "classifier.3": 0.00258087126288827
+  },
+  "baseline_correct": 9856,
+  "integer_correct": 9856,
+  "baseline_accuracy_percent": 98.56,
+  "integer_accuracy_percent": 98.56,
+  "changed_predictions_vs_float": 2,
+  "accumulator_ranges_int32_checked": {
+    "features.0": [
+      -74511,
+      93914
+    ],
+    "features.3": [
+      -266891,
+      184360
+    ],
+    "classifier.1": [
+      0,
+      370804
+    ],
+    "classifier.3": [
+      -90682,
+      87090
+    ]
+  },
+  "note": "INT64 reference MACs and bias addition are checked against INT32 limits before casting. Ranges include bias and are measured before ReLU."
+}

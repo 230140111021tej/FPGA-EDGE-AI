@@ -1,0 +1,8 @@
+inputs=1568
+outputs=64
+multiplier=1427002
+shift=31
+acc_min=-181072
+acc_max=179831
+activation_min=0
+activation_max=119

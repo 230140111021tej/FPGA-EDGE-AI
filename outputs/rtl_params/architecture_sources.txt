@@ -1,0 +1,373 @@
+CNN MODEL ARCHITECTURE SOURCE SEARCH
+Project root: D:\FPGA_EdgeAI\cnn_baseline
+
+=== D:\FPGA_EdgeAI\cnn_baseline\scripts\inspect_cnn_architecture.py ===
+4: root = Path(r"D:\FPGA_EdgeAI\cnn_baseline")
+5: out = root / "outputs" / "rtl_params" / "architecture_sources.txt"
+6: terms = ("class SmallCNN", "class MNIST", "Conv2d(", "MaxPool2d(", "AdaptiveAvgPool", "classifier", "features", "padding=")
+7: roots = [root / "scripts", root / "experiments", root / "models", root]
+8: found = []
+9: seen = set()
+44:     data = json.loads(manifest.read_text())
+45:     lines.append("=== SHAPE CHECK ===")
+46:     lines.append(f"FC1 weight shape: {data['layers']['classifier.1']['weight_shape']}")
+47:     lines.append("FC1 input features: 1568")
+48:     lines.append("32 channels x 7 x 7 spatial = 1568")
+49:     lines.append("Current valid Conv1 spatial size: 26 x 26")
+50:     lines.append("If Conv1 and Conv2 are both valid and each followed by 2x2 pooling: final spatial size = 5 x 5; flatten = 800")
+
+=== D:\FPGA_EdgeAI\cnn_baseline\experiments\conv1_requant\generate_conv1_vectors.py ===
+38:                     ix = x + kx - 1
+39: 
+40:                     # Same zero-padding as Conv2d(..., padding=1).
+41:                     if 0 <= iy < SIZE and 0 <= ix < SIZE:
+42:                         acc += (
+43:                             int(image[iy, ix])
+
+=== D:\FPGA_EdgeAI\cnn_baseline\export_rtl_params.py ===
+15: # in integer_cnn_reference.py.
+16: WEIGHT_SCALES = {
+17:     "features.0": 0.0059380850454015055,
+18:     "features.3": 0.004132752812753512,
+19:     "classifier.1": 0.0028914492430649405,
+20:     "classifier.3": 0.00258087126288827,
+21: }
+22: 
+23: # Activation scales from the preserved 10,000-image reference.
+32: 
+33: LAYERS = [
+34:     ("features.0", "conv1"),
+35:     ("features.3", "conv2"),
+36:     ("classifier.1", "fc1"),
+37:     ("classifier.3", "fc2"),
+38: ]
+39: 
+40: checkpoint = torch.load(
+74:     wq = np.clip(np.rint(w / actual_scale), -127, 127).astype(np.int8)
+75: 
+76:     if name == "features.0":
+77:         input_scale = ACTIVATION_SCALES["input"]
+78:         output_scale = ACTIVATION_SCALES["pool1"]
+79:     elif name == "features.3":
+80:         input_scale = ACTIVATION_SCALES["pool1"]
+81:         output_scale = ACTIVATION_SCALES["pool2"]
+82:     elif name == "classifier.1":
+83:         input_scale = ACTIVATION_SCALES["pool2"]
+84:         output_scale = ACTIVATION_SCALES["fc1_relu"]
+85:     else:
+
+=== D:\FPGA_EdgeAI\cnn_baseline\inspect_model.py ===
+15: 
+16: 
+17: class SmallCNN(nn.Module):
+18:     def __init__(self):
+19:         super().__init__()
+20: 
+21:         self.features = nn.Sequential(
+22:             nn.Conv2d(1, 16, kernel_size=3, padding=1),
+23:             nn.ReLU(),
+24:             nn.MaxPool2d(2),
+25:             nn.Conv2d(16, 32, kernel_size=3, padding=1),
+26:             nn.ReLU(),
+27:             nn.MaxPool2d(2),
+28:         )
+29: 
+30:         self.classifier = nn.Sequential(
+31:             nn.Flatten(),
+32:             nn.Linear(32 * 7 * 7, 64),
+33:             nn.ReLU(),
+36: 
+37:     def forward(self, x):
+38:         return self.classifier(self.features(x))
+39: 
+40: 
+41: model = SmallCNN().to(DEVICE)
+67: 
+68: with torch.no_grad():
+69:     for name, layer in model.features.named_children():
+70:         x = layer(x)
+71:         print(f"features.{name}: {tuple(x.shape)}")
+72: 
+73:     for name, layer in model.classifier.named_children():
+74:         x = layer(x)
+75:         print(f"classifier.{name}: {tuple(x.shape)}")
+76: 
+77: # Load a small, fixed group of test images
+78: test_dataset = datasets.MNIST(
+
+=== D:\FPGA_EdgeAI\cnn_baseline\inspect_ranges.py ===
+12: 
+13: 
+14: class SmallCNN(nn.Module):
+15:     def __init__(self):
+16:         super().__init__()
+17:         self.features = nn.Sequential(
+18:             nn.Conv2d(1, 16, 3, padding=1),
+19:             nn.ReLU(),
+20:             nn.MaxPool2d(2),
+21:             nn.Conv2d(16, 32, 3, padding=1),
+22:             nn.ReLU(),
+23:             nn.MaxPool2d(2),
+24:         )
+25:         self.classifier = nn.Sequential(
+26:             nn.Flatten(),
+27:             nn.Linear(32 * 7 * 7, 64),
+28:             nn.ReLU(),
+31: 
+32:     def forward(self, x):
+33:         return self.classifier(self.features(x))
+34: 
+35: 
+36: model = SmallCNN().to(DEVICE)
+
+=== D:\FPGA_EdgeAI\cnn_baseline\integer_cnn_reference.py ===
+15: 
+16: 
+17: class SmallCNN(nn.Module):
+18:     def __init__(self):
+19:         super().__init__()
+20:         self.features = nn.Sequential(
+21:             nn.Conv2d(1, 16, 3, padding=1),
+22:             nn.ReLU(),
+23:             nn.MaxPool2d(2),
+24:             nn.Conv2d(16, 32, 3, padding=1),
+25:             nn.ReLU(),
+26:             nn.MaxPool2d(2),
+27:         )
+28:         self.classifier = nn.Sequential(
+29:             nn.Flatten(),
+30:             nn.Linear(32 * 7 * 7, 64),
+31:             nn.ReLU(),
+34: 
+35:     def forward(self, x):
+36:         return self.classifier(self.features(x))
+37: 
+38: 
+39: def load_model():
+56:         for start in range(0, len(images), BATCH_SIZE):
+57:             x = images[start:start + BATCH_SIZE]
+58:             x = model.features[0](x)
+59:             x = model.features[1](x)
+60:             x = model.features[2](x)
+61:             maxima["pool1"] = max(
+62:                 maxima["pool1"], x.max().item()
+63:             )
+64:             x = model.features[3](x)
+65:             x = model.features[4](x)
+66:             x = model.features[5](x)
+67:             maxima["pool2"] = max(
+68:                 maxima["pool2"], x.max().item()
+69:             )
+70:             x = model.classifier[0](x)
+71:             x = model.classifier[1](x)
+72:             x = model.classifier[2](x)
+73:             maxima["fc1_relu"] = max(
+74:                 maxima["fc1_relu"], x.max().item()
+75:             )
+90:         return np.zeros(layer.out_channels if isinstance(
+91:             layer, nn.Conv2d
+92:         ) else layer.out_features, dtype=np.int32)
+93:     b = layer.bias.detach().cpu().numpy()
+94:     scale = input_scale * weight_scale
+95:     q = np.rint(b / scale)
+130:     x_t = torch.from_numpy(xq.astype(np.float32))
+131:     patches = F.unfold(
+132:         x_t, kernel_size=kernel, padding=padding, stride=stride
+133:     ).numpy().astype(np.int64)
+134:     patches = np.transpose(patches, (0, 2, 1))
+135:     w = weight_q.reshape(layer.out_channels, -1).astype(np.int64)
+148: 
+149:     if accumulator_ranges is not None:
+150:         name = "features.0" if layer.in_channels == 1 else "features.3"
+151:         old_lo, old_hi = accumulator_ranges[name]
+152:         accumulator_ranges[name] = [
+153:             lo if old_lo is None else min(lo, old_lo),
+232:     }
+233: 
+234:     conv1, conv2 = model.features[0], model.features[3]
+235:     fc1, fc2 = model.classifier[1], model.classifier[3]
+236:     qweights = {}
+237:     wscales = {}
+238:     for name, layer in [
+239:         ("features.0", conv1),
+240:         ("features.3", conv2),
+241:         ("classifier.1", fc1),
+242:         ("classifier.3", fc2),
+243:     ]:
+244:         qweights[name], wscales[name] = quantize_weights(layer)
+245: 
+266:         xq = integer_conv_pool(
+267:             xq, scales["input"], conv1,
+268:             qweights["features.0"], wscales["features.0"],
+269:             scales["pool1"], accumulator_ranges
+270:         )
+271:         xq = integer_conv_pool(
+272:             xq, scales["pool1"], conv2,
+273:             qweights["features.3"], wscales["features.3"],
+274:             scales["pool2"], accumulator_ranges
+275:         )
+276: 
+277:         xq, acc1 = integer_linear(
+278:             xq, scales["pool2"], fc1,
+279:             qweights["classifier.1"], wscales["classifier.1"],
+280:             relu=True, output_scale=scales["fc1_relu"]
+281:         )
+282:         xq, acc2 = integer_linear(
+283:             xq, scales["fc1_relu"], fc2,
+284:             qweights["classifier.3"], wscales["classifier.3"],
+285:             relu=False
+286:         )
+287:         integer_predictions.extend(np.argmax(xq, axis=1).tolist())
+288: 
+289:         for name, acc in [
+290:             ("classifier.1", acc1),
+291:             ("classifier.3", acc2),
+292:         ]:
+293:             lo, hi = int(acc.min()), int(acc.max())
+294:             old_lo, old_hi = accumulator_ranges[name]
+
+=== D:\FPGA_EdgeAI\cnn_baseline\integer_mac_check.py ===
+13: 
+14: 
+15: class SmallCNN(nn.Module):
+16:     def __init__(self):
+17:         super().__init__()
+18:         self.features = nn.Sequential(
+19:             nn.Conv2d(1, 16, 3, padding=1),
+20:             nn.ReLU(),
+21:             nn.MaxPool2d(2),
+22:             nn.Conv2d(16, 32, 3, padding=1),
+23:             nn.ReLU(),
+24:             nn.MaxPool2d(2),
+25:         )
+26:         self.classifier = nn.Sequential(
+27:             nn.Flatten(),
+28:             nn.Linear(32 * 7 * 7, 64),
+29:             nn.ReLU(),
+32: 
+33:     def forward(self, x):
+34:         return self.classifier(self.features(x))
+35: 
+36: 
+37: model = SmallCNN().to(DEVICE)
+64: # Calibrate the actual input to the first fully connected layer.
+65: with torch.no_grad():
+66:     calibration_features = model.features(calibration_images)
+67:     calibration_x = calibration_features.flatten(start_dim=1)
+68: 
+69:     x_float = model.features(images).flatten(start_dim=1)
+70: 
+71:     float_layer = model.classifier[1]
+72:     reference = float_layer(x_float)
+73: 
+74: # All values here are nonnegative because of ReLU before pooling.
+
+=== D:\FPGA_EdgeAI\cnn_baseline\quantize_activations.py ===
+14: 
+15: 
+16: class SmallCNN(nn.Module):
+17:     def __init__(self):
+18:         super().__init__()
+19:         self.features = nn.Sequential(
+20:             nn.Conv2d(1, 16, 3, padding=1),
+21:             nn.ReLU(),
+22:             nn.MaxPool2d(2),
+23:             nn.Conv2d(16, 32, 3, padding=1),
+24:             nn.ReLU(),
+25:             nn.MaxPool2d(2),
+26:         )
+27:         self.classifier = nn.Sequential(
+28:             nn.Flatten(),
+29:             nn.Linear(32 * 7 * 7, 64),
+30:             nn.ReLU(),
+36:         x = fake_quant_unsigned(x, 1.0)
+37: 
+38:         x = self.features[0](x)
+39:         x = self.features[1](x)
+40:         x = self.features[2](x)
+41:         x = fake_quant_unsigned(x, 2.1746950149536133)
+42: 
+43:         x = self.features[3](x)
+44:         x = self.features[4](x)
+45:         x = self.features[5](x)
+46:         x = fake_quant_unsigned(x, 6.421261310577393)
+47: 
+48:         x = self.classifier[0](x)
+49:         x = self.classifier[1](x)
+50:         x = self.classifier[2](x)
+51:         x = fake_quant_unsigned(x, 27.94095802307129)
+52: 
+53:         x = self.classifier[3](x)
+54:         return x
+55: 
+56: 
+
+=== D:\FPGA_EdgeAI\cnn_baseline\quantize_weights.py ===
+16: 
+17: 
+18: class SmallCNN(nn.Module):
+19:     def __init__(self):
+20:         super().__init__()
+21:         self.features = nn.Sequential(
+22:             nn.Conv2d(1, 16, 3, padding=1),
+23:             nn.ReLU(),
+24:             nn.MaxPool2d(2),
+25:             nn.Conv2d(16, 32, 3, padding=1),
+26:             nn.ReLU(),
+27:             nn.MaxPool2d(2),
+28:         )
+29:         self.classifier = nn.Sequential(
+30:             nn.Flatten(),
+31:             nn.Linear(32 * 7 * 7, 64),
+32:             nn.ReLU(),
+35: 
+36:     def forward(self, x):
+37:         return self.classifier(self.features(x))
+38: 
+39: 
+40: def load_model():
+
+=== D:\FPGA_EdgeAI\cnn_baseline\train.py ===
+60: 
+61: # CNN model
+62: class SmallCNN(nn.Module):
+63:     def __init__(self):
+64:         super().__init__()
+65: 
+66:         self.features = nn.Sequential(
+67:             nn.Conv2d(1, 16, kernel_size=3, padding=1),
+68:             nn.ReLU(),
+69:             nn.MaxPool2d(2),
+70:             nn.Conv2d(16, 32, kernel_size=3, padding=1),
+71:             nn.ReLU(),
+72:             nn.MaxPool2d(2),
+73:         )
+74: 
+75:         self.classifier = nn.Sequential(
+76:             nn.Flatten(),
+77:             nn.Linear(32 * 7 * 7, 64),
+78:             nn.ReLU(),
+81: 
+82:     def forward(self, x):
+83:         x = self.features(x)
+84:         return self.classifier(x)
+85: 
+86: model = SmallCNN().to(DEVICE)
+87: criterion = nn.CrossEntropyLoss()
+
+=== D:\FPGA_EdgeAI\cnn_baseline\sim\requantize\generate_vectors.py ===
+10: 
+11: layers = [
+12:     ("features.0", "conv1"),
+13:     ("features.3", "conv2"),
+14:     ("classifier.1", "fc1"),
+15: ]
+16: 
+17: SHIFT = 31
+
+=== SHAPE CHECK ===
+FC1 weight shape: [64, 1568]
+FC1 input features: 1568
+32 channels x 7 x 7 spatial = 1568
+Current valid Conv1 spatial size: 26 x 26
+If Conv1 and Conv2 are both valid and each followed by 2x2 pooling: final spatial size = 5 x 5; flatten = 800

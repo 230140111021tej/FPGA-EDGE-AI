@@ -1,0 +1,5 @@
+dataset=MNIST test
+index=0
+label=7
+pixels=784
+encoding=28x28 grayscale uint8, row-major, 00-FF

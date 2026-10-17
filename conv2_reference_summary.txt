@@ -1,0 +1,11 @@
+image_label=6
+pool1_shape=(16, 14, 14)
+conv2_acc_shape=(32, 14, 14)
+conv2_activation_shape=(32, 14, 14)
+pool2_shape=(32, 7, 7)
+conv2_acc_min=-181118
+conv2_acc_max=118108
+conv2_activation_min=0
+conv2_activation_max=165
+pool2_min=0
+pool2_max=165

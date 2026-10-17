@@ -1,0 +1,279 @@
+﻿DAY 10 SYNTHESIZABLE CNN PREFLIGHT
+Generated: 2026-10-17 19:00:37
+READ ONLY: no RTL, ROM, or project files are modified.
+
+================================================================================
+FILE: rtl\fc2_full_layer.v
+================================================================================
+   1: `timescale 1ns/1ps
+   2: module fc2_full_layer #(
+   3:  parameter INPUT_FILE="rom/fc2_fc1_input_hex.mem",
+   4:  parameter WEIGHT_FILE="rom/fc2_weights_int8_hex.mem",
+   5:  parameter BIAS_FILE="rom/fc2_bias_int32_hex.mem"
+   6: )(
+   7:  input wire clk,input wire rst,input wire start,
+   8:  output reg busy,output reg done,
+   9:  output reg [3:0] out_addr,output reg signed [31:0] out_score,output reg out_valid
+  10: );
+  11:  reg [7:0] input_map [0:63];
+  12:  reg [7:0] weights [0:639];
+  13:  reg [31:0] biases [0:9];
+  14:  reg [511:0] input_flat,weight_flat;
+  15:  reg signed [31:0] bias_reg;
+  16:  reg mac_start;
+  17:  wire mac_busy,mac_done;
+  18:  wire signed [31:0] mac_acc;
+  19:  integer class_index,j;
+  20:  initial begin
+  21:   $readmemh(INPUT_FILE,input_map);
+  22:   $readmemh(WEIGHT_FILE,weights);
+  23:   $readmemh(BIAS_FILE,biases);
+  24:  end
+  25:  fc2_shared_mac mac(.clk(clk),.rst(rst),.start(mac_start),
+  26:   .inputs_flat(input_flat),.weights_flat(weight_flat),.bias(bias_reg),
+  27:   .acc(mac_acc),.busy(mac_busy),.done(mac_done));
+  28:  always @(posedge clk) begin
+  29:   if(rst) begin
+  30:    busy<=0;done<=0;out_addr<=0;out_score<=0;out_valid<=0;
+  31:    class_index<=0;input_flat<=0;weight_flat<=0;bias_reg<=0;mac_start<=0;
+  32:   end else begin
+  33:    done<=0;out_valid<=0;mac_start<=0;
+  34:    if(start && !busy) begin
+  35:     busy<=1;class_index<=0;
+  36:     for(j=0;j<64;j=j+1) input_flat[j*8 +: 8]<=input_map[j];
+  37:     for(j=0;j<64;j=j+1) weight_flat[j*8 +: 8]<=weights[j];
+  38:     bias_reg<=biases[0];
+  39:     mac_start<=1;
+  40:    end else if(busy && mac_done) begin
+  41:     out_addr<=class_index;
+  42:     out_score<=mac_acc;
+  43:     out_valid<=1;
+  44:     if(class_index==9) begin busy<=0;done<=1;end
+  45:     else begin
+  46:      class_index<=class_index+1;
+  47:      for(j=0;j<64;j=j+1) weight_flat[j*8 +: 8]<=weights[(class_index+1)*64+j];
+  48:      bias_reg<=biases[class_index+1];
+  49:      mac_start<=1;
+  50:     end
+  51:    end
+  52:   end
+  53:  end
+  54: endmodule
+
+================================================================================
+FILE: rtl\cnn_integrated_sim_top.v
+================================================================================
+   1: `timescale 1ns/1ps
+   2: module cnn_integrated_sim_top(
+   3:  input wire clk,input wire rst,input wire start,
+   4:  output reg busy,output reg done,
+   5:  output reg [3:0] predicted_class,
+   6:  output reg scores_valid,
+   7:  output reg signed [31:0] score0,score1,score2,score3,score4,
+   8:  output reg signed [31:0] score5,score6,score7,score8,score9
+   9: );
+  10:  localparam C1_COUNT=12544;
+  11:  localparam C2_COUNT=6272;
+  12:  reg [7:0] c1_acts [0:12543];
+  13:  reg [7:0] c2_acts [0:6271];
+  14:  reg [7:0] pool1 [0:3135];
+  15:  reg [7:0] pool2 [0:1567];
+  16:  reg [7:0] fc1_acts [0:63];
+  17: 
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  19:  wire c1_busy,c1_done,c1_valid;
+  20:  wire [13:0] c1_addr;
+  21:  wire [3:0] c1_filter;
+  22:  wire signed [19:0] c1_acc;
+  23:  wire c1_act_valid;
+  24:  wire [7:0] c1_act;
+  25:  wire c2_busy,c2_done,c2_valid;
+  26:  wire [12:0] c2_addr;
+  27:  wire [4:0] c2_filter;
+  28:  wire signed [19:0] c2_acc;
+  29:  wire c2_act_valid;
+  30:  wire [7:0] c2_act;
+  31:  wire f1_busy,f1_done,f1_valid;
+  32:  wire [5:0] f1_addr;
+  33:  wire signed [31:0] f1_acc;
+  34:  wire f1_act_valid;
+  35:  wire [7:0] f1_act;
+  36:  wire f2_busy,f2_done,f2_valid;
+  37:  wire [3:0] f2_addr;
+  38:  wire signed [31:0] f2_score;
+  39: 
+  40:  reg [13:0] c1_addr_d;
+  41:  reg [12:0] c2_addr_d;
+  42:  reg [5:0] f1_addr_d;
+  43:  reg [3:0] f2_addr_d;
+  44:  integer phase,wait_count;
+  45:  integer f,y,x,base,mx;
+  46:  integer i;
+  47:  reg signed [31:0] scores [0:9];
+  48:  integer best_class;
+  49:  reg signed [31:0] best_score;
+  50: 
+  51:  conv1_full_layer c1(
+  52:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+  53:   .out_addr(c1_addr),.out_filter(c1_filter),.out_acc(c1_acc),.out_valid(c1_valid)
+  54:  );
+  55:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+  56:   .out_valid(c1_act_valid),.out_activation(c1_act));
+  57: 
+  58:  conv2_full_layer c2(
+  59:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+  60:   .out_addr(c2_addr),.out_filter(c2_filter),.out_acc(c2_acc),.out_valid(c2_valid)
+  61:  );
+  62:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+  63:   .out_valid(c2_act_valid),.out_data(c2_act));
+  64: 
+  65:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  66:   .out_addr(f1_addr),.out_acc(f1_acc),.out_valid(f1_valid));
+  67:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  68:   .out_valid(f1_act_valid),.out_data(f1_act));
+  69: 
+  70:  fc2_full_layer f2(.clk(clk),.rst(rst),.start(f2_start),.busy(f2_busy),.done(f2_done),
+  71:   .out_addr(f2_addr),.out_score(f2_score),.out_valid(f2_valid));
+  72: 
+  73:  always @(posedge clk) begin
+  74:   if(rst) begin c1_addr_d<=0;c2_addr_d<=0;f1_addr_d<=0;f2_addr_d<=0;end
+  75:   else begin
+  76:    if(c1_valid) c1_addr_d<=c1_addr;
+  77:    if(c2_valid) c2_addr_d<=c2_addr;
+  78:    if(f1_valid) f1_addr_d<=f1_addr;
+  79:    if(f2_valid) f2_addr_d<=f2_addr;
+  80:    if(c1_act_valid) c1_acts[c1_addr_d]<=c1_act;
+  81:    if(c2_act_valid) c2_acts[c2_addr_d]<=c2_act;
+  82:    if(f1_act_valid) fc1_acts[f1_addr_d]<=f1_act;
+  83:    if(f2_valid) scores[f2_addr]<=f2_score;
+  84:   end
+  85:  end
+  86: 
+  87:  // This controller performs actual activation writeback between layer instances.
+  88:  // The existing layer modules expose ROM arrays internally; these writes update
+  89:  // their input memories before each subsequent layer is started.
+  90:  always @(posedge clk) begin
+  91:   if(rst) begin
+  92:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+  93:    score0<=0;score1<=0;score2<=0;score3<=0;score4<=0;
+  94:    score5<=0;score6<=0;score7<=0;score8<=0;score9<=0;
+  95:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+  96:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+  97:   end else begin
+  98:    done<=0;scores_valid<=0;
+  99:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 100:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 101:    else begin
+ 102:     case(phase)
+ 103:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 104:      2: if(wait_count>0) wait_count<=wait_count-1;
+ 105:         else begin
+ 106:          for(f=0;f<16;f=f+1) begin
+ 107:           for(y=0;y<14;y=y+1) begin
+ 108:            for(x=0;x<14;x=x+1) begin
+ 109:             base=f*784+(2*y)*28+(2*x);
+ 110:             mx=c1_acts[base];
+ 111:             if(c1_acts[base+1]>mx) mx=c1_acts[base+1];
+ 112:             if(c1_acts[base+28]>mx) mx=c1_acts[base+28];
+ 113:             if(c1_acts[base+29]>mx) mx=c1_acts[base+29];
+ 114:             pool1[f*196+y*14+x]=mx[7:0];
+ 115:             c2.input_map[f*196+y*14+x]=mx[7:0];
+ 116:            end
+ 117:           end
+ 118:          end
+ 119:          phase<=3;c2_start<=1;
+ 120:         end
+ 121:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 122:      4: if(wait_count>0) wait_count<=wait_count-1;
+ 123:         else begin
+ 124:          for(f=0;f<32;f=f+1) begin
+ 125:           for(y=0;y<7;y=y+1) begin
+ 126:            for(x=0;x<7;x=x+1) begin
+ 127:             base=f*196+(2*y)*14+(2*x);
+ 128:             mx=c2_acts[base];
+ 129:             if(c2_acts[base+1]>mx) mx=c2_acts[base+1];
+ 130:             if(c2_acts[base+14]>mx) mx=c2_acts[base+14];
+ 131:             if(c2_acts[base+15]>mx) mx=c2_acts[base+15];
+ 132:             pool2[f*49+y*7+x]=mx[7:0];
+ 133:             f1.input_map[f*49+y*7+x]=mx[7:0];
+ 134:            end
+ 135:           end
+ 136:          end
+ 137:          phase<=5;f1_start<=1;
+ 138:         end
+ 139:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+ 140:      6: if(wait_count>0) wait_count<=wait_count-1;
+ 141:         else begin
+ 142:          for(i=0;i<64;i=i+1) f2.input_map[i]=fc1_acts[i];
+ 143:          phase<=7;f2_start<=1;
+ 144:         end
+ 145:      7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 146:      8: if(wait_count>0) wait_count<=wait_count-1;
+ 147:         else begin
+ 148:          score0<=scores[0];score1<=scores[1];score2<=scores[2];score3<=scores[3];score4<=scores[4];
+ 149:          score5<=scores[5];score6<=scores[6];score7<=scores[7];score8<=scores[8];score9<=scores[9];
+ 150:          best_class=0;best_score=scores[0];
+ 151:          for(i=1;i<10;i=i+1) if(scores[i]>best_score) begin best_score=scores[i];best_class=i;end
+ 152:          predicted_class<=best_class[3:0];
+ 153:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+ 154:         end
+ 155:      default: begin end
+ 156:     endcase
+ 157:    end
+ 158:   end
+ 159:  end
+ 160: endmodule
+
+================================================================================
+FILE: rtl\fc2_shared_mac.v
+================================================================================
+   1: `timescale 1ns/1ps
+   2: module fc2_shared_mac(
+   3:  input wire clk,input wire rst,input wire start,
+   4:  input wire [511:0] inputs_flat,input wire [511:0] weights_flat,
+   5:  input wire signed [31:0] bias,
+   6:  output reg signed [31:0] acc,output reg busy,output reg done
+   7: );
+   8:  reg [5:0] index;
+   9:  reg signed [8:0] p;
+  10:  reg signed [7:0] w;
+  11:  reg signed [16:0] product;
+  12:  reg signed [31:0] sum;
+  13:  always @(posedge clk) begin
+  14:   if(rst) begin index<=0;p<=0;w<=0;product<=0;sum<=0;acc<=0;busy<=0;done<=0;end
+  15:   else begin
+  16:    done<=0;
+  17:    if(start && !busy) begin index<=0;sum<=bias;busy<=1;end
+  18:    else if(busy) begin
+  19:     p={1'b0,inputs_flat[index*8 +: 8]};
+  20:     w=$signed(weights_flat[index*8 +: 8]);
+  21:     product=p*w;
+  22:     sum<=sum+product;
+  23:     if(index==63) begin acc<=sum+product;busy<=0;done<=1;end
+  24:     else index<=index+1'b1;
+  25:    end
+  26:   end
+  27:  end
+  28: endmodule
+
+================================================================================
+ROM / parameter files used by the layer modules
+================================================================================
+rom\conv1_image_u8_hex.mem | bytes=3136 | lines=784
+rom\conv1_weights_int8_hex.mem | bytes=576 | lines=144
+rom\conv1_bias_int32_hex.mem | bytes=160 | lines=16
+rom\conv2_pool1_input_hex.mem | bytes=12544 | lines=3136
+rom\conv2_weights_int8_hex.mem | bytes=18432 | lines=4608
+rom\conv2_bias_int32_hex.mem | bytes=320 | lines=32
+rom\fc1_pool2_input_hex.mem | bytes=6272 | lines=1568
+rom\fc1_weights_int8_hex.mem | bytes=401408 | lines=100352
+rom\fc1_bias_int32_hex.mem | bytes=640 | lines=64
+rom\fc2_input_hex.mem | MISSING
+rom\fc2_weights_int8_hex.mem | bytes=2560 | lines=640
+rom\fc2_bias_int32_hex.mem | bytes=100 | lines=10
+
+================================================================================
+Vivado availability
+================================================================================
+Vivado executable found: D:\vivado\2025.1\Vivado\bin\vivado.bat
+This preflight does not launch synthesis.

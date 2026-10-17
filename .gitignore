@@ -1,0 +1,12 @@
+.venv/
+.Xil/
+__pycache__/
+*.pyc
+xsim.dir/
+vivado_output/
+vivado_shared_mac/
+vivado_shared_mac_gui/
+*.jou
+*.log
+*.pb
+*.backup.*

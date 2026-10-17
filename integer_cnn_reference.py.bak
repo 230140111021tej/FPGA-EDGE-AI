@@ -1,0 +1,309 @@
+import json
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torchvision import datasets, transforms
+
+OUT = Path("outputs")
+DEVICE = torch.device("cpu")
+CALIBRATION_SAMPLES = 512
+EVAL_SAMPLES = 512
+BATCH_SIZE = 32
+
+
+class SmallCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 16, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(32 * 7 * 7, 64),
+            nn.ReLU(),
+            nn.Linear(64, 10),
+        )
+
+    def forward(self, x):
+        return self.classifier(self.features(x))
+
+
+def load_model():
+    model = SmallCNN().to(DEVICE)
+    model.load_state_dict(torch.load(
+        OUT / "best_mnist_cnn.pth",
+        map_location=DEVICE,
+        weights_only=True,
+    ))
+    return model.eval()
+
+
+def activation_maxima(model, images):
+    maxima = {
+        "pool1": 0.0,
+        "pool2": 0.0,
+        "fc1_relu": 0.0,
+    }
+    with torch.no_grad():
+        for start in range(0, len(images), BATCH_SIZE):
+            x = images[start:start + BATCH_SIZE]
+            x = model.features[0](x)
+            x = model.features[1](x)
+            x = model.features[2](x)
+            maxima["pool1"] = max(
+                maxima["pool1"], x.max().item()
+            )
+            x = model.features[3](x)
+            x = model.features[4](x)
+            x = model.features[5](x)
+            maxima["pool2"] = max(
+                maxima["pool2"], x.max().item()
+            )
+            x = model.classifier[0](x)
+            x = model.classifier[1](x)
+            x = model.classifier[2](x)
+            maxima["fc1_relu"] = max(
+                maxima["fc1_relu"], x.max().item()
+            )
+    return maxima
+
+
+def quantize_weights(layer):
+    w = layer.weight.detach().cpu().numpy()
+    scale = float(np.max(np.abs(w))) / 127.0
+    if scale == 0:
+        scale = 1.0
+    q = np.clip(np.rint(w / scale), -127, 127).astype(np.int8)
+    return q, scale
+
+
+def int32_bias(layer, input_scale, weight_scale):
+    if layer.bias is None:
+        return np.zeros(layer.out_channels if isinstance(
+            layer, nn.Conv2d
+        ) else layer.out_features, dtype=np.int32)
+    b = layer.bias.detach().cpu().numpy()
+    scale = input_scale * weight_scale
+    q = np.rint(b / scale)
+    if np.max(np.abs(q)) > np.iinfo(np.int32).max:
+        raise OverflowError("Quantized bias does not fit INT32")
+    return q.astype(np.int32)
+
+
+def requantize_nonnegative(acc, acc_scale, output_scale):
+    # Explicit integer-domain output quantization.
+    # Float is used only to calculate the scale ratio, not for MACs.
+    ratio = acc_scale / output_scale
+    q = np.rint(acc.astype(np.float64) * ratio)
+    return np.clip(q, 0, 255).astype(np.uint8)
+
+
+def integer_conv_pool(xq, input_scale, layer, weight_q,
+                      weight_scale, output_scale):
+    # xq: N,C,H,W unsigned 8-bit activation.
+    # Accumulation: INT32 matrix multiplication.
+    n, channels, height, width = xq.shape
+    kernel = layer.kernel_size[0]
+    padding = layer.padding[0]
+    stride = layer.stride[0]
+
+    x_t = torch.from_numpy(xq.astype(np.float32))
+    # Unfold only rearranges input values; convert patches to integers
+    # before the matrix multiplication.
+    patches = F.unfold(
+        x_t, kernel_size=kernel, padding=padding, stride=stride
+    ).numpy().astype(np.int32)
+    # [N, C*K*K, L] -> [N, L, C*K*K]
+    patches = np.transpose(patches, (0, 2, 1))
+    w = weight_q.reshape(layer.out_channels, -1).astype(np.int32)
+
+    acc = np.matmul(patches, w.T)
+    bias = int32_bias(layer, input_scale, weight_scale)
+    acc += bias.reshape(1, 1, -1)
+
+    int32_min, int32_max = np.iinfo(np.int32).min, np.iinfo(np.int32).max
+    if acc.min() < int32_min or acc.max() > int32_max:
+        raise OverflowError("Convolution accumulator exceeds INT32")
+
+    out_h = (height + 2 * padding - kernel) // stride + 1
+    out_w = (width + 2 * padding - kernel) // stride + 1
+    acc = acc.reshape(n, out_h, out_w, layer.out_channels)
+    acc = np.transpose(acc, (0, 3, 1, 2))
+
+    # ReLU and 2x2 max-pooling operate before requantization.
+    acc = np.maximum(acc, 0)
+    pooled = acc.reshape(
+        n, layer.out_channels, out_h // 2, 2, out_w // 2, 2
+    ).max(axis=(3, 5))
+
+    return requantize_nonnegative(
+        pooled, input_scale * weight_scale, output_scale
+    )
+
+
+def integer_linear(xq, input_scale, layer, weight_q,
+                   weight_scale, relu, output_scale=None):
+    x = xq.reshape(xq.shape[0], -1).astype(np.int32)
+    w = weight_q.astype(np.int32)
+    acc = np.matmul(x, w.T)
+    acc += int32_bias(layer, input_scale, weight_scale).reshape(1, -1)
+
+    if acc.min() < np.iinfo(np.int32).min or \
+       acc.max() > np.iinfo(np.int32).max:
+        raise OverflowError("Linear accumulator exceeds INT32")
+
+    if relu:
+        acc = np.maximum(acc, 0)
+        if output_scale is None:
+            raise ValueError("ReLU output requires an activation scale")
+        q = requantize_nonnegative(
+            acc, input_scale * weight_scale, output_scale
+        )
+        return q, acc
+
+    # Final logits can stay as signed integer accumulators.
+    return acc, acc
+
+
+def main():
+    torch.set_num_threads(2)
+    model = load_model()
+
+    train = datasets.MNIST(
+        root="data", train=True, download=False,
+        transform=transforms.ToTensor()
+    )
+    test = datasets.MNIST(
+        root="data", train=False, download=False,
+        transform=transforms.ToTensor()
+    )
+
+    calibration = torch.stack([
+        train[i][0] for i in range(CALIBRATION_SAMPLES)
+    ])
+    images = torch.stack([
+        test[i][0] for i in range(EVAL_SAMPLES)
+    ])
+    labels = np.array([
+        test[i][1] for i in range(EVAL_SAMPLES)
+    ], dtype=np.int64)
+
+    maxima = activation_maxima(model, calibration)
+    scales = {
+        "input": 1.0 / 255.0,
+        "pool1": maxima["pool1"] / 255.0,
+        "pool2": maxima["pool2"] / 255.0,
+        "fc1_relu": maxima["fc1_relu"] / 255.0,
+    }
+
+    conv1, conv2 = model.features[0], model.features[3]
+    fc1, fc2 = model.classifier[1], model.classifier[3]
+    qweights = {}
+    wscales = {}
+    for name, layer in [
+        ("features.0", conv1),
+        ("features.3", conv2),
+        ("classifier.1", fc1),
+        ("classifier.3", fc2),
+    ]:
+        qweights[name], wscales[name] = quantize_weights(layer)
+
+    float_predictions = []
+    integer_predictions = []
+    accumulator_ranges = {
+        name: [None, None]
+        for name in qweights
+    }
+
+    for start in range(0, len(images), BATCH_SIZE):
+        xb = images[start:start + BATCH_SIZE]
+        # Baseline predictions.
+        with torch.no_grad():
+            float_predictions.extend(
+                model(xb).argmax(dim=1).cpu().tolist()
+            )
+
+        # Input pixels: unsigned 8-bit, scale 1/255.
+        xq = np.clip(
+            np.rint(xb.numpy() / scales["input"]), 0, 255
+        ).astype(np.uint8)
+
+        xq = integer_conv_pool(
+            xq, scales["input"], conv1,
+            qweights["features.0"], wscales["features.0"],
+            scales["pool1"]
+        )
+        xq = integer_conv_pool(
+            xq, scales["pool1"], conv2,
+            qweights["features.3"], wscales["features.3"],
+            scales["pool2"]
+        )
+
+        xq, acc1 = integer_linear(
+            xq, scales["pool2"], fc1,
+            qweights["classifier.1"], wscales["classifier.1"],
+            relu=True, output_scale=scales["fc1_relu"]
+        )
+        xq, acc2 = integer_linear(
+            xq, scales["fc1_relu"], fc2,
+            qweights["classifier.3"], wscales["classifier.3"],
+            relu=False
+        )
+        integer_predictions.extend(np.argmax(xq, axis=1).tolist())
+
+        for name, acc in [
+            ("classifier.1", acc1),
+            ("classifier.3", acc2),
+        ]:
+            lo, hi = int(acc.min()), int(acc.max())
+            old_lo, old_hi = accumulator_ranges[name]
+            accumulator_ranges[name] = [
+                lo if old_lo is None else min(lo, old_lo),
+                hi if old_hi is None else max(hi, old_hi),
+            ]
+
+    float_predictions = np.array(float_predictions)
+    integer_predictions = np.array(integer_predictions)
+    baseline_correct = int(np.sum(float_predictions == labels))
+    integer_correct = int(np.sum(integer_predictions == labels))
+    changed = int(np.sum(float_predictions != integer_predictions))
+
+    results = {
+        "method": "integer MACs with per-layer symmetric INT8 weights and unsigned 8-bit activations",
+        "calibration_samples": CALIBRATION_SAMPLES,
+        "evaluation_samples": EVAL_SAMPLES,
+        "activation_maxima": maxima,
+        "activation_scales": scales,
+        "weight_scales": wscales,
+        "baseline_correct": baseline_correct,
+        "integer_correct": integer_correct,
+        "baseline_accuracy_percent": 100.0 * baseline_correct / len(labels),
+        "integer_accuracy_percent": 100.0 * integer_correct / len(labels),
+        "changed_predictions_vs_float": changed,
+        "accumulator_ranges_int32_checked": accumulator_ranges,
+        "note": "Initial integer reference. Convolution accumulators are checked internally; recorded ranges currently cover fully connected layers."
+    }
+
+    path = OUT / "integer_cnn_reference_results.json"
+    path.write_text(json.dumps(results, indent=2))
+
+    print("\n=== INTEGER CNN REFERENCE ===")
+    print(f"Evaluation samples: {len(labels)}")
+    print(f"Float baseline accuracy: {results['baseline_accuracy_percent']:.2f}%")
+    print(f"Integer CNN accuracy: {results['integer_accuracy_percent']:.2f}%")
+    print(f"Predictions changed vs float: {changed}/{len(labels)}")
+    print("Activation maxima:", json.dumps(maxima, indent=2))
+    print("FC accumulator ranges:", json.dumps(accumulator_ranges, indent=2))
+    print(f"Saved: {path}")
+
+
+if __name__ == "__main__":
+    main()

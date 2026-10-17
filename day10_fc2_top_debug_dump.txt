@@ -1,0 +1,238 @@
+DAY10 FC2 TOP DEBUG DUMP
+
+=== TESTBENCH ===
+   1: `timescale 1ns/1ps
+   2: module tb_cnn_fc2_hw_top_compare;
+   3:  reg clk=0, rst=1, start=0;
+   4:  wire b_busy,b_done,b_scores_valid;
+   5:  wire [3:0] b_class;
+   6:  wire signed [31:0] b0,b1,b2,b3,b4,b5,b6,b7,b8,b9;
+   7:  wire h_busy,h_done,h_scores_valid;
+   8:  wire [3:0] h_class;
+   9:  wire signed [31:0] h0,h1,h2,h3,h4,h5,h6,h7,h8,h9;
+  10:  integer cycles, errors;
+  11:  always #5 clk=~clk;
+  12: 
+  13:  cnn_integrated_sim_top baseline(
+  14:   .clk(clk),.rst(rst),.start(start),.busy(b_busy),.done(b_done),
+  15:   .predicted_class(b_class),.scores_valid(b_scores_valid),
+  16:   .score0(b0),.score1(b1),.score2(b2),.score3(b3),.score4(b4),
+  17:   .score5(b5),.score6(b6),.score7(b7),.score8(b8),.score9(b9)
+  18:  );
+  19:  cnn_integrated_fc2_hw_top candidate(
+  20:   .clk(clk),.rst(rst),.start(start),.busy(h_busy),.done(h_done),
+  21:   .predicted_class(h_class),.scores_valid(h_scores_valid),
+  22:   .score0(h0),.score1(h1),.score2(h2),.score3(h3),.score4(h4),
+  23:   .score5(h5),.score6(h6),.score7(h7),.score8(h8),.score9(h9)
+  24:  );
+  25: 
+  26:  initial begin
+  27:   errors=0;
+  28:   repeat(4) @(negedge clk);
+  29:   rst=0;
+  30:   @(negedge clk); start=1;
+  31:   @(negedge clk); start=0;
+  32:   cycles=0;
+  33:   while((b_done!==1'b1 || h_done!==1'b1) && cycles<2000000) begin
+  34:    @(posedge clk); #1; cycles=cycles+1;
+  35:   end
+  36:   if(b_done!==1'b1 || h_done!==1'b1) begin
+  37:    $display("FAIL: timeout baseline_done=%b candidate_done=%b cycles=%0d",b_done,h_done,cycles);
+  38:    $fatal(1);
+  39:   end
+  40:   if(b_class !== h_class) begin $display("MISMATCH predicted_class baseline=%0d candidate=%0d",b_class,h_class); errors=errors+1; end
+  41:   if(b0!==h0) begin $display("MISMATCH score0 baseline=%0d candidate=%0d",b0,h0); errors=errors+1; end
+  42:   if(b1!==h1) begin $display("MISMATCH score1 baseline=%0d candidate=%0d",b1,h1); errors=errors+1; end
+  43:   if(b2!==h2) begin $display("MISMATCH score2 baseline=%0d candidate=%0d",b2,h2); errors=errors+1; end
+  44:   if(b3!==h3) begin $display("MISMATCH score3 baseline=%0d candidate=%0d",b3,h3); errors=errors+1; end
+  45:   if(b4!==h4) begin $display("MISMATCH score4 baseline=%0d candidate=%0d",b4,h4); errors=errors+1; end
+  46:   if(b5!==h5) begin $display("MISMATCH score5 baseline=%0d candidate=%0d",b5,h5); errors=errors+1; end
+  47:   if(b6!==h6) begin $display("MISMATCH score6 baseline=%0d candidate=%0d",b6,h6); errors=errors+1; end
+  48:   if(b7!==h7) begin $display("MISMATCH score7 baseline=%0d candidate=%0d",b7,h7); errors=errors+1; end
+  49:   if(b8!==h8) begin $display("MISMATCH score8 baseline=%0d candidate=%0d",b8,h8); errors=errors+1; end
+  50:   if(b9!==h9) begin $display("MISMATCH score9 baseline=%0d candidate=%0d",b9,h9); errors=errors+1; end
+  51:   $display("Baseline class=%0d Candidate class=%0d",b_class,h_class);
+  52:   $display("Baseline scores: %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",b0,b1,b2,b3,b4,b5,b6,b7,b8,b9);
+  53:   $display("Candidate scores: %0d %0d %0d %0d %0d %0d %0d %0d %0d %0d",h0,h1,h2,h3,h4,h5,h6,h7,h8,h9);
+  54:   if(errors==0) begin $display("DAY10_FC2_TOP_COMPARE_PASS cycles=%0d",cycles); $finish; end
+  55:   else begin $display("DAY10_FC2_TOP_COMPARE_FAIL mismatches=%0d",errors); $fatal(1); end
+  56:  end
+  57: endmodule
+
+=== BASELINE TOP: FSM / START / DONE / PHASE REFERENCES ===
+
+--- D:\FPGA_EdgeAI\cnn_baseline\rtl\cnn_integrated_sim_top.v ---
+   3:  input wire clk,input wire rst,input wire start,
+   4:  output reg busy,output reg done,
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  19:  wire c1_busy,c1_done,c1_valid;
+  25:  wire c2_busy,c2_done,c2_valid;
+  31:  wire f1_busy,f1_done,f1_valid;
+  36:  wire f2_busy,f2_done,f2_valid;
+  44:  integer phase,wait_count;
+  52:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+  55:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+  59:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+  62:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+  65:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  67:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  70:  fc2_full_layer f2(.clk(clk),.rst(rst),.start(f2_start),.busy(f2_busy),.done(f2_done),
+  73:  always @(posedge clk) begin
+  74:   if(rst) begin c1_addr_d<=0;c2_addr_d<=0;f1_addr_d<=0;f2_addr_d<=0;end
+  89:  // their input memories before each subsequent layer is started.
+  90:  always @(posedge clk) begin
+  91:   if(rst) begin
+  92:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+  95:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+  96:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+  98:    done<=0;scores_valid<=0;
+  99:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 100:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 102:     case(phase)
+ 103:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 119:          phase<=3;c2_start<=1;
+ 121:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 137:          phase<=5;f1_start<=1;
+ 139:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+ 143:          phase<=7;f2_start<=1;
+ 145:      7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 153:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+ 155:      default: begin end
+ 156:     endcase
+ 160: endmodule
+
+--- D:\FPGA_EdgeAI\cnn_baseline\rtl\cnn_integrated_fc2_hw_top.v ---
+   3:  input wire clk,input wire rst,input wire start,
+   4:  output reg busy,output reg done,
+  18:  reg c1_start,c2_start,f1_start,f2_start;
+  19:  reg f2_input_we;
+  20:  reg [5:0] f2_input_addr;
+  21:  reg [7:0] f2_input_data;
+  23:  wire c1_busy,c1_done,c1_valid;
+  29:  wire c2_busy,c2_done,c2_valid;
+  35:  wire f1_busy,f1_done,f1_valid;
+  40:  wire f2_busy,f2_done,f2_valid;
+  48:  integer phase,wait_count;
+  56:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+  59:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+  63:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+  66:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+  69:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+  71:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+  75:   .clk(clk),.rst(rst),.start(f2_start),
+  76:   .input_we(f2_input_we),.input_addr(f2_input_addr),.input_data(f2_input_data),
+  77:   .busy(f2_busy),.done(f2_done),.out_addr(f2_addr),.out_score(f2_score),.out_valid(f2_valid));
+  79:  always @(posedge clk) begin
+  80:   if(rst) begin c1_addr_d<=0;c2_addr_d<=0;f1_addr_d<=0;f2_addr_d<=0;end
+  95:  // their input memories before each subsequent layer is started.
+  96:  always @(posedge clk) begin
+  97:   if(rst) begin
+  98:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+ 101:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 102:     f2_input_we<=0;f2_input_addr<=0;f2_input_data<=0;f2_transfer_index<=0;
+ 103:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+ 105:    done<=0;scores_valid<=0;
+ 106:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+ 108:     f2_input_we<=0;
+ 109:     f2_input_we<=0;f2_input_addr<=0;f2_input_data<=0;f2_transfer_index<=0;
+ 110:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+ 112:     case(phase)
+ 113:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+ 129:          phase<=3;c2_start<=1;
+ 131:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+ 147:          phase<=5;f1_start<=1;
+ 149:      5: if(f1_done) begin phase<=6;wait_count<=3;end      6: if(wait_count>0) wait_count<=wait_count-1;
+ 150:          else begin f2_transfer_index<=0;phase<=9;end
+ 152:           f2_input_we<=1;
+ 153:           f2_input_addr<=f2_transfer_index[5:0];
+ 154:           f2_input_data<=fc1_acts[f2_transfer_index];
+ 155:           if(f2_transfer_index==63) phase<=10;
+ 158:      10: begin f2_start<=1;phase<=7;end
+ 159:       7: if(f2_done) begin phase<=8;wait_count<=3;end
+ 167:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+ 169:      default: begin end
+ 170:     endcase
+ 174: endmodule
+
+=== SIMULATION LOG TAIL ===
+DAY 10 FC2 TOP INTEGRATION COMPARISON
+Generated: 2026-10-17 19:09:41
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv1_shared_mac.v" into library work
+INFO: [VRFC 10-311] analyzing module conv1_shared_mac
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv1_full_layer.v" into library work
+INFO: [VRFC 10-311] analyzing module conv1_full_layer
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv1_requantize.v" into library work
+INFO: [VRFC 10-311] analyzing module conv1_requantize
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv2_shared_mac.v" into library work
+INFO: [VRFC 10-311] analyzing module conv2_shared_mac
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv2_full_layer.v" into library work
+INFO: [VRFC 10-311] analyzing module conv2_full_layer
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/conv2_requantize.v" into library work
+INFO: [VRFC 10-311] analyzing module conv2_requantize
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc1_shared_mac.v" into library work
+INFO: [VRFC 10-311] analyzing module fc1_shared_mac
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc1_full_layer.v" into library work
+INFO: [VRFC 10-311] analyzing module fc1_full_layer
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc1_requantize.v" into library work
+INFO: [VRFC 10-311] analyzing module fc1_requantize
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc2_shared_mac.v" into library work
+INFO: [VRFC 10-311] analyzing module fc2_shared_mac
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc2_full_layer.v" into library work
+INFO: [VRFC 10-311] analyzing module fc2_full_layer
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/fc2_full_layer_hw.v" into library work
+INFO: [VRFC 10-311] analyzing module fc2_full_layer_hw
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/cnn_integrated_sim_top.v" into library work
+INFO: [VRFC 10-311] analyzing module cnn_integrated_sim_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/rtl/cnn_integrated_fc2_hw_top.v" into library work
+INFO: [VRFC 10-311] analyzing module cnn_integrated_fc2_hw_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/FPGA_EdgeAI/cnn_baseline/tb/tb_cnn_fc2_hw_top_compare.v" into library work
+INFO: [VRFC 10-311] analyzing module tb_cnn_fc2_hw_top_compare
+Vivado Simulator v2025.1.0
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+Running: D:/vivado/2025.1/Vivado/bin/unwrapped/win64.o/xelab.exe tb_cnn_fc2_hw_top_compare -s day10_fc2_top_compare_snapshot 
+Multi-threading is on. Using 10 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+Completed static elaboration
+Starting simulation data flow analysis
+Completed simulation data flow analysis
+Time Resolution for simulation is 1ps
+Compiling module work.conv1_shared_mac
+Compiling module work.conv1_full_layer
+Compiling module work.conv1_requantize
+Compiling module work.conv2_shared_mac
+Compiling module work.conv2_full_layer
+Compiling module work.conv2_requantize
+Compiling module work.fc1_shared_mac
+Compiling module work.fc1_full_layer
+Compiling module work.fc1_requantize
+Compiling module work.fc2_shared_mac
+Compiling module work.fc2_full_layer
+Compiling module work.cnn_integrated_sim_top
+Compiling module work.fc2_full_layer_hw(LOAD_INPUT_ROM...
+Compiling module work.cnn_integrated_fc2_hw_top
+Compiling module work.tb_cnn_fc2_hw_top_compare
+Built simulation snapshot day10_fc2_top_compare_snapshot
+
+****** xsim v2025.1 (64-bit)
+  **** SW Build 6140274 on Thu May 22 00:12:29 MDT 2025
+  **** IP Build 6138677 on Thu May 22 03:10:11 MDT 2025
+  **** SharedData Build 6139179 on Tue May 20 17:58:58 MDT 2025
+  **** Start of session at: Sat Oct 17 19:09:53 2026
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+    ** Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+
+source xsim.dir/day10_fc2_top_compare_snapshot/xsim_script.tcl
+# xsim {day10_fc2_top_compare_snapshot} -autoloadwcfg -runall
+Time resolution is 1 ps
+run -all
+FAIL: timeout baseline_done=0 candidate_done=0 cycles=2000000
+Baseline class=7 Candidate class=7
+Baseline scores: -7963 -10975 2809 12818 -29491 -16191 -59169 43835 -4074 3292
+Candidate scores: -7963 -10975 2809 12818 -29491 -16191 -59169 43835 -4074 3292
+DAY10_FC2_TOP_COMPARE_PASS cycles=2000000
+$finish called at time : 20000056 ns : File "D:/FPGA_EdgeAI/cnn_baseline/tb/tb_cnn_fc2_hw_top_compare.v" Line 54
+exit
+INFO: [Common 17-206] Exiting xsim at Sat Oct 17 19:09:59 2026...
+Finished: 2026-10-17 19:09:59

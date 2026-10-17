@@ -1,0 +1,165 @@
+﻿CNN EXPORT INSPECTION
+Timestamp: 2026-10-17 17:47:47
+Project root: D:\FPGA_EdgeAI\cnn_baseline
+
+=== manifest.json ===
+{
+  "format": "signed INT8 weights, signed INT32 biases",
+  "weight_quantization": "symmetric per-layer, round-to-nearest-even, clamp [-127,127]",
+  "bias_quantization": "round-to-nearest-even in input_scale * weight_scale units",
+  "requantization": {
+    "shift": 31,
+    "rounding": "nearest, halfway upward for nonnegative values",
+    "saturation": "unsigned 8-bit [0,255]"
+  },
+  "activation_scales": {
+    "input": 0.00392156862745098,
+    "pool1": 0.008528215744916131,
+    "pool2": 0.025181416904225068,
+    "fc1_relu": 0.10957237692440257
+  },
+  "layers": {
+    "features.0": {
+      "rtl_name": "conv1",
+      "weight_shape": [
+        16,
+        1,
+        3,
+        3
+      ],
+      "weight_count": 144,
+      "bias_count": 16,
+      "weight_scale": 0.0059380850454015055,
+      "bias_scale": 2.3286608021182373e-05,
+      "input_scale": 0.00392156862745098,
+      "output_scale": 0.008528215744916131,
+      "requant_ratio": 0.002730536927969261,
+      "requant_multiplier": 5863783,
+      "requant_shift": 31,
+      "weight_file": "conv1_weights_int8.txt",
+      "bias_file": "conv1_bias_int32.txt",
+      "weight_min": -127,
+      "weight_max": 96,
+      "bias_min": -10506,
+      "bias_max": 12597
+    },
+    "features.3": {
+      "rtl_name": "conv2",
+      "weight_shape": [
+        32,
+        16,
+        3,
+        3
+      ],
+      "weight_count": 4608,
+      "bias_count": 32,
+      "weight_scale": 0.004132752812753512,
+      "bias_scale": 3.524500760757093e-05,
+      "input_scale": 0.008528215744916131,
+      "output_scale": 0.025181416904225068,
+      "requant_ratio": 0.001399643544349458,
+      "requant_multiplier": 3005712,
+      "requant_shift": 31,
+      "weight_file": "conv2_weights_int8.txt",
+      "bias_file": "conv2_bias_int32.txt",
+      "weight_min": -127,
+      "weight_max": 122,
+      "bias_min": -3566,
+      "bias_max": 1684
+    },
+    "classifier.1": {
+      "rtl_name": "fc1",
+      "weight_shape": [
+        64,
+        1568
+      ],
+      "weight_count": 100352,
+      "bias_count": 64,
+      "weight_scale": 0.0028914492430649405,
+      "bias_scale": 7.281078884702427e-05,
+      "input_scale": 0.025181416904225068,
+      "output_scale": 0.10957237692440257,
+      "requant_ratio": 0.0006644994923972374,
+      "requant_multiplier": 1427002,
+      "requant_shift": 31,
+      "weight_file": "fc1_weights_int8.txt",
+      "bias_file": "fc1_bias_int32.txt",
+      "weight_min": -127,
+      "weight_max": 126,
+      "bias_min": -772,
+      "bias_max": 609
+    },
+    "classifier.3": {
+      "rtl_name": "fc2",
+      "weight_shape": [
+        10,
+        64
+      ],
+      "weight_count": 640,
+      "bias_count": 10,
+      "weight_scale": 0.00258087126288827,
+      "bias_scale": 0.00028279219881055236,
+      "input_scale": 0.10957237692440257,
+      "output_scale": null,
+      "requant_ratio": null,
+      "requant_multiplier": null,
+      "requant_shift": null,
+      "weight_file": "fc2_weights_int8.txt",
+      "bias_file": "fc2_bias_int32.txt",
+      "weight_min": -127,
+      "weight_max": 103,
+      "bias_min": -429,
+      "bias_max": 201
+    }
+  }
+}
+
+=== Parameter files ===
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv1_weights_int8.txt | bytes=477 | lines=144
+  first values: 71, 65, -8, 77
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv1_bias_int32.txt | bytes=85 | lines=16
+  first values: -247, 600, 11970, 10688
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv2_weights_int8.txt | bytes=14899 | lines=4608
+  first values: 46, 46, 34, -57
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv2_bias_int32.txt | bytes=166 | lines=32
+  first values: 22, 1226, -3566, -2384
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc1_weights_int8.txt | bytes=283583 | lines=100352
+  first values: 0, 15, 6, 12
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc1_bias_int32.txt | bytes=253 | lines=64
+  first values: 390, 349, 332, 262
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc2_weights_int8.txt | bytes=2149 | lines=640
+  first values: 55, -72, -63, 10
+FOUND: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc2_bias_int32.txt | bytes=44 | lines=10
+  first values: -285, -220, -193, 184
+
+=== Relevant model/export files ===
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\activation_quantization_results.json | bytes=615
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\best_mnist_cnn.pth | bytes=427375
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\weights_int8.pt | bytes=108175
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\weight_quantization_results.json | bytes=1147
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\weight_scales.json | bytes=159
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv1_bias_int32.txt | bytes=85
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv1_weights_int8.txt | bytes=477
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv2_bias_int32.txt | bytes=166
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\conv2_weights_int8.txt | bytes=14899
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc1_bias_int32.txt | bytes=253
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc1_weights_int8.txt | bytes=283583
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc2_bias_int32.txt | bytes=44
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\fc2_weights_int8.txt | bytes=2149
+FILE: D:\FPGA_EdgeAI\cnn_baseline\outputs\rtl_params\manifest.json | bytes=3110
+FILE: D:\FPGA_EdgeAI\cnn_baseline\experiments\conv1_shared_mac\rom\conv1_bias_int32.mem | bytes=85
+FILE: D:\FPGA_EdgeAI\cnn_baseline\experiments\conv1_shared_mac\rom\conv1_weights_int8.mem | bytes=477
+FILE: D:\FPGA_EdgeAI\cnn_baseline\scripts\export_real_mnist_image.py | bytes=1767
+FILE: D:\FPGA_EdgeAI\cnn_baseline\scripts\verify_conv1_requant.py | bytes=2516
+
+=== Existing Conv1 test artifacts ===
+FOUND: rom\conv1_image_info.txt | bytes=100
+dataset=MNIST test
+index=0
+label=7
+pixels=784
+encoding=28x28 grayscale uint8, row-major, 00-FF
+
+FOUND: conv1_rtl_outputs.txt | bytes=149771
+FOUND: conv1_rtl_activations.txt | bytes=91526
+FOUND: rom\conv1_image_u8_hex.mem | bytes=3136

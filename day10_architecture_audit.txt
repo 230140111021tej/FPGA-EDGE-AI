@@ -1,0 +1,380 @@
+﻿DAY 10 CNN RTL ARCHITECTURE AUDIT
+Project root: D:\FPGA_EdgeAI\cnn_baseline
+Generated: 2026-10-17 18:57:02
+
+PURPOSE: Read-only inspection. This script does not modify RTL or ROM files.
+
+========================================================================================
+FILE: rtl\cnn_integrated_sim_top.v
+========================================================================================
+STATUS: FOUND (160 lines)
+-- Module declarations / ports --
+    2: module cnn_integrated_sim_top(
+    3:  input wire clk,input wire rst,input wire start,
+    4:  output reg busy,output reg done,
+    5:  output reg [3:0] predicted_class,
+    6:  output reg scores_valid,
+    7:  output reg signed [31:0] score0,score1,score2,score3,score4,
+    8:  output reg signed [31:0] score5,score6,score7,score8,score9
+    9: );
+   54:  );
+   61:  );
+-- Potential integration / synthesis concerns --
+  115: c2.input_map[f*196+y*14+x]=mx[7:0];
+  133: f1.input_map[f*49+y*7+x]=mx[7:0];
+  142: for(i=0;i<64;i=i+1) f2.input_map[i]=fc1_acts[i];
+-- Full integration top (for design review) --
+    1: `timescale 1ns/1ps
+    2: module cnn_integrated_sim_top(
+    3:  input wire clk,input wire rst,input wire start,
+    4:  output reg busy,output reg done,
+    5:  output reg [3:0] predicted_class,
+    6:  output reg scores_valid,
+    7:  output reg signed [31:0] score0,score1,score2,score3,score4,
+    8:  output reg signed [31:0] score5,score6,score7,score8,score9
+    9: );
+   10:  localparam C1_COUNT=12544;
+   11:  localparam C2_COUNT=6272;
+   12:  reg [7:0] c1_acts [0:12543];
+   13:  reg [7:0] c2_acts [0:6271];
+   14:  reg [7:0] pool1 [0:3135];
+   15:  reg [7:0] pool2 [0:1567];
+   16:  reg [7:0] fc1_acts [0:63];
+   17: 
+   18:  reg c1_start,c2_start,f1_start,f2_start;
+   19:  wire c1_busy,c1_done,c1_valid;
+   20:  wire [13:0] c1_addr;
+   21:  wire [3:0] c1_filter;
+   22:  wire signed [19:0] c1_acc;
+   23:  wire c1_act_valid;
+   24:  wire [7:0] c1_act;
+   25:  wire c2_busy,c2_done,c2_valid;
+   26:  wire [12:0] c2_addr;
+   27:  wire [4:0] c2_filter;
+   28:  wire signed [19:0] c2_acc;
+   29:  wire c2_act_valid;
+   30:  wire [7:0] c2_act;
+   31:  wire f1_busy,f1_done,f1_valid;
+   32:  wire [5:0] f1_addr;
+   33:  wire signed [31:0] f1_acc;
+   34:  wire f1_act_valid;
+   35:  wire [7:0] f1_act;
+   36:  wire f2_busy,f2_done,f2_valid;
+   37:  wire [3:0] f2_addr;
+   38:  wire signed [31:0] f2_score;
+   39: 
+   40:  reg [13:0] c1_addr_d;
+   41:  reg [12:0] c2_addr_d;
+   42:  reg [5:0] f1_addr_d;
+   43:  reg [3:0] f2_addr_d;
+   44:  integer phase,wait_count;
+   45:  integer f,y,x,base,mx;
+   46:  integer i;
+   47:  reg signed [31:0] scores [0:9];
+   48:  integer best_class;
+   49:  reg signed [31:0] best_score;
+   50: 
+   51:  conv1_full_layer c1(
+   52:   .clk(clk),.rst(rst),.start(c1_start),.busy(c1_busy),.done(c1_done),
+   53:   .out_addr(c1_addr),.out_filter(c1_filter),.out_acc(c1_acc),.out_valid(c1_valid)
+   54:  );
+   55:  conv1_requantize c1rq(.clk(clk),.rst(rst),.in_valid(c1_valid),.in_acc(c1_acc),
+   56:   .out_valid(c1_act_valid),.out_activation(c1_act));
+   57: 
+   58:  conv2_full_layer c2(
+   59:   .clk(clk),.rst(rst),.start(c2_start),.busy(c2_busy),.done(c2_done),
+   60:   .out_addr(c2_addr),.out_filter(c2_filter),.out_acc(c2_acc),.out_valid(c2_valid)
+   61:  );
+   62:  conv2_requantize c2rq(.clk(clk),.rst(rst),.in_valid(c2_valid),.in_acc(c2_acc),
+   63:   .out_valid(c2_act_valid),.out_data(c2_act));
+   64: 
+   65:  fc1_full_layer f1(.clk(clk),.rst(rst),.start(f1_start),.busy(f1_busy),.done(f1_done),
+   66:   .out_addr(f1_addr),.out_acc(f1_acc),.out_valid(f1_valid));
+   67:  fc1_requantize f1rq(.clk(clk),.rst(rst),.in_valid(f1_valid),.in_acc(f1_acc),
+   68:   .out_valid(f1_act_valid),.out_data(f1_act));
+   69: 
+   70:  fc2_full_layer f2(.clk(clk),.rst(rst),.start(f2_start),.busy(f2_busy),.done(f2_done),
+   71:   .out_addr(f2_addr),.out_score(f2_score),.out_valid(f2_valid));
+   72: 
+   73:  always @(posedge clk) begin
+   74:   if(rst) begin c1_addr_d<=0;c2_addr_d<=0;f1_addr_d<=0;f2_addr_d<=0;end
+   75:   else begin
+   76:    if(c1_valid) c1_addr_d<=c1_addr;
+   77:    if(c2_valid) c2_addr_d<=c2_addr;
+   78:    if(f1_valid) f1_addr_d<=f1_addr;
+   79:    if(f2_valid) f2_addr_d<=f2_addr;
+   80:    if(c1_act_valid) c1_acts[c1_addr_d]<=c1_act;
+   81:    if(c2_act_valid) c2_acts[c2_addr_d]<=c2_act;
+   82:    if(f1_act_valid) fc1_acts[f1_addr_d]<=f1_act;
+   83:    if(f2_valid) scores[f2_addr]<=f2_score;
+   84:   end
+   85:  end
+   86: 
+   87:  // This controller performs actual activation writeback between layer instances.
+   88:  // The existing layer modules expose ROM arrays internally; these writes update
+   89:  // their input memories before each subsequent layer is started.
+   90:  always @(posedge clk) begin
+   91:   if(rst) begin
+   92:    busy<=0;done<=0;predicted_class<=0;scores_valid<=0;
+   93:    score0<=0;score1<=0;score2<=0;score3<=0;score4<=0;
+   94:    score5<=0;score6<=0;score7<=0;score8<=0;score9<=0;
+   95:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+   96:    phase<=0;wait_count<=0;best_class<=0;best_score<=-2147483647;
+   97:   end else begin
+   98:    done<=0;scores_valid<=0;
+   99:    c1_start<=0;c2_start<=0;f1_start<=0;f2_start<=0;
+  100:    if(start && !busy) begin busy<=1;phase<=1;c1_start<=1;end
+  101:    else begin
+  102:     case(phase)
+  103:      1: if(c1_done) begin phase<=2;wait_count<=3;end
+  104:      2: if(wait_count>0) wait_count<=wait_count-1;
+  105:         else begin
+  106:          for(f=0;f<16;f=f+1) begin
+  107:           for(y=0;y<14;y=y+1) begin
+  108:            for(x=0;x<14;x=x+1) begin
+  109:             base=f*784+(2*y)*28+(2*x);
+  110:             mx=c1_acts[base];
+  111:             if(c1_acts[base+1]>mx) mx=c1_acts[base+1];
+  112:             if(c1_acts[base+28]>mx) mx=c1_acts[base+28];
+  113:             if(c1_acts[base+29]>mx) mx=c1_acts[base+29];
+  114:             pool1[f*196+y*14+x]=mx[7:0];
+  115:             c2.input_map[f*196+y*14+x]=mx[7:0];
+  116:            end
+  117:           end
+  118:          end
+  119:          phase<=3;c2_start<=1;
+  120:         end
+  121:      3: if(c2_done) begin phase<=4;wait_count<=3;end
+  122:      4: if(wait_count>0) wait_count<=wait_count-1;
+  123:         else begin
+  124:          for(f=0;f<32;f=f+1) begin
+  125:           for(y=0;y<7;y=y+1) begin
+  126:            for(x=0;x<7;x=x+1) begin
+  127:             base=f*196+(2*y)*14+(2*x);
+  128:             mx=c2_acts[base];
+  129:             if(c2_acts[base+1]>mx) mx=c2_acts[base+1];
+  130:             if(c2_acts[base+14]>mx) mx=c2_acts[base+14];
+  131:             if(c2_acts[base+15]>mx) mx=c2_acts[base+15];
+  132:             pool2[f*49+y*7+x]=mx[7:0];
+  133:             f1.input_map[f*49+y*7+x]=mx[7:0];
+  134:            end
+  135:           end
+  136:          end
+  137:          phase<=5;f1_start<=1;
+  138:         end
+  139:      5: if(f1_done) begin phase<=6;wait_count<=3;end
+  140:      6: if(wait_count>0) wait_count<=wait_count-1;
+  141:         else begin
+  142:          for(i=0;i<64;i=i+1) f2.input_map[i]=fc1_acts[i];
+  143:          phase<=7;f2_start<=1;
+  144:         end
+  145:      7: if(f2_done) begin phase<=8;wait_count<=3;end
+  146:      8: if(wait_count>0) wait_count<=wait_count-1;
+  147:         else begin
+  148:          score0<=scores[0];score1<=scores[1];score2<=scores[2];score3<=scores[3];score4<=scores[4];
+  149:          score5<=scores[5];score6<=scores[6];score7<=scores[7];score8<=scores[8];score9<=scores[9];
+  150:          best_class=0;best_score=scores[0];
+  151:          for(i=1;i<10;i=i+1) if(scores[i]>best_score) begin best_score=scores[i];best_class=i;end
+  152:          predicted_class<=best_class[3:0];
+  153:          scores_valid<=1;done<=1;busy<=0;phase<=0;
+  154:         end
+  155:      default: begin end
+  156:     endcase
+  157:    end
+  158:   end
+  159:  end
+  160: endmodule
+
+========================================================================================
+FILE: rtl\conv1_full_layer.v
+========================================================================================
+STATUS: FOUND (100 lines)
+-- Module declarations / ports --
+    2: module conv1_full_layer #(
+    7:  input wire clk, input wire rst, input wire start,
+    8:  output reg busy, output reg done,
+    9:  output reg [13:0] out_addr, output reg [3:0] out_filter,
+   10:  output reg signed [19:0] out_acc, output reg out_valid
+   11: );
+   28:  );
+   38:   input integer pos;
+   39:   input integer filt;
+-- Potential integration / synthesis concerns --
+   31: $readmemh(IMAGE_FILE, image);
+   32: $readmemh(WEIGHT_FILE, weights);
+   33: $readmemh(BIAS_FILE, biases);
+
+========================================================================================
+FILE: rtl\conv1_shared_mac.v
+========================================================================================
+STATUS: FOUND (29 lines)
+-- Module declarations / ports --
+    2: module conv1_shared_mac (
+    3:  input wire clk, input wire rst, input wire start,
+    4:  input wire [71:0] pixels, input wire [71:0] weights,
+    5:  input wire signed [31:0] bias,
+    6:  output reg signed [19:0] acc, output reg busy, output reg done
+    7: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\conv1_requantize.v
+========================================================================================
+STATUS: FOUND (41 lines)
+-- Module declarations / ports --
+    2: module conv1_requantize (
+    3:  input wire clk,
+    4:  input wire rst,
+    5:  input wire in_valid,
+    6:  input wire signed [19:0] in_acc,
+    7:  output reg out_valid,
+    8:  output reg [7:0] out_activation
+    9: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\conv2_full_layer.v
+========================================================================================
+STATUS: FOUND (79 lines)
+-- Module declarations / ports --
+    2: module conv2_full_layer #(
+    7:  input wire clk,input wire rst,input wire start,
+    8:  output reg busy,output reg done,
+    9:  output reg [12:0] out_addr,output reg [4:0] out_filter,
+   10:  output reg signed [19:0] out_acc,output reg out_valid
+   11: );
+   35:   input integer pos;
+   36:   input integer filt;
+-- Potential integration / synthesis concerns --
+   29: $readmemh(INPUT_FILE,input_map);
+   30: $readmemh(WEIGHT_FILE,weights);
+   31: $readmemh(BIAS_FILE,biases);
+
+========================================================================================
+FILE: rtl\conv2_shared_mac.v
+========================================================================================
+STATUS: FOUND (28 lines)
+-- Module declarations / ports --
+    2: module conv2_shared_mac(
+    3:  input wire clk, input wire rst, input wire start,
+    4:  input wire [1151:0] pixels, input wire [1151:0] weights,
+    5:  input wire signed [31:0] bias,
+    6:  output reg signed [19:0] acc, output reg busy, output reg done
+    7: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\conv2_requantize.v
+========================================================================================
+STATUS: FOUND (34 lines)
+-- Module declarations / ports --
+    2: module conv2_requantize(
+    3:  input wire clk,
+    4:  input wire rst,
+    5:  input wire in_valid,
+    6:  input wire signed [19:0] in_acc,
+    7:  output reg out_valid,
+    8:  output reg [7:0] out_data
+    9: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\fc1_full_layer.v
+========================================================================================
+STATUS: FOUND (56 lines)
+-- Module declarations / ports --
+    2: module fc1_full_layer #(
+    7:  input wire clk,input wire rst,input wire start,
+    8:  output reg busy,output reg done,
+    9:  output reg [5:0] out_addr,output reg signed [31:0] out_acc,output reg out_valid
+   10: );
+-- Potential integration / synthesis concerns --
+   22: $readmemh(INPUT_FILE,input_map);
+   23: $readmemh(WEIGHT_FILE,weights);
+   24: $readmemh(BIAS_FILE,biases);
+
+========================================================================================
+FILE: rtl\fc1_shared_mac.v
+========================================================================================
+STATUS: FOUND (38 lines)
+-- Module declarations / ports --
+    2: module fc1_shared_mac(
+    3:  input wire clk,
+    4:  input wire rst,
+    5:  input wire start,
+    6:  input wire [12543:0] inputs_flat,
+    7:  input wire [12543:0] weights_flat,
+    8:  input wire signed [31:0] bias,
+    9:  output reg signed [31:0] acc,
+   10:  output reg busy,
+   11:  output reg done
+   12: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\fc1_requantize.v
+========================================================================================
+STATUS: FOUND (26 lines)
+-- Module declarations / ports --
+    2: module fc1_requantize(
+    3:  input wire clk,input wire rst,input wire in_valid,input wire signed [31:0] in_acc,
+    4:  output reg out_valid,output reg [7:0] out_data
+    5: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: rtl\fc2_full_layer.v
+========================================================================================
+STATUS: FOUND (54 lines)
+-- Module declarations / ports --
+    2: module fc2_full_layer #(
+    7:  input wire clk,input wire rst,input wire start,
+    8:  output reg busy,output reg done,
+    9:  output reg [3:0] out_addr,output reg signed [31:0] out_score,output reg out_valid
+   10: );
+-- Potential integration / synthesis concerns --
+   21: $readmemh(INPUT_FILE,input_map);
+   22: $readmemh(WEIGHT_FILE,weights);
+   23: $readmemh(BIAS_FILE,biases);
+
+========================================================================================
+FILE: rtl\fc2_shared_mac.v
+========================================================================================
+STATUS: FOUND (28 lines)
+-- Module declarations / ports --
+    2: module fc2_shared_mac(
+    3:  input wire clk,input wire rst,input wire start,
+    4:  input wire [511:0] inputs_flat,input wire [511:0] weights_flat,
+    5:  input wire signed [31:0] bias,
+    6:  output reg signed [31:0] acc,output reg busy,output reg done
+    7: );
+-- Potential integration / synthesis concerns --
+No matches for the selected patterns.
+
+========================================================================================
+FILE: tb\tb_cnn_integrated_validation.v
+========================================================================================
+STATUS: FOUND (46 lines)
+-- Module declarations / ports --
+    2: module tb_cnn_integrated_validation;
+-- Potential integration / synthesis concerns --
+    9: always #5 clk=~clk;
+   15: fd=$fopen("cnn_rtl_final_scores.txt","w");
+   16: if(fd==0) begin $display("ERROR opening final score file");$fatal(1);end
+   20: while(done !== 1'b1 && cycles<2000000) begin @(posedge clk); #1; cycles=cycles+1; end
+   21: #2;
+   24: $display("FAIL: integrated CNN timed out at %0d cycles",cycles);
+   25: status_fd=$fopen("cnn_rtl_run_status.txt","w");
+   31: status_fd=$fopen("cnn_rtl_run_status.txt","w");
+   40: $display("Integrated CNN predicted class: %0d",predicted_class);
+   41: $display("Integrated CNN simulation cycles: %0d",cycles);
+
+========================================================================================
+AUDIT COMPLETE
+No source files were changed.

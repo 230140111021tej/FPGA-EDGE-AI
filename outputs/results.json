@@ -1,0 +1,49 @@
+{
+  "seed": 42,
+  "device": "cpu",
+  "pytorch_version": "2.14.1+cu130",
+  "train_samples": 55000,
+  "validation_samples": 5000,
+  "test_samples": 10000,
+  "epochs": 5,
+  "best_epoch": 5,
+  "best_validation_accuracy_percent": 98.48,
+  "test_accuracy_percent": 98.56,
+  "test_loss": 0.04389268654752523,
+  "model_size_bytes": 427375,
+  "model_size_KiB": 417.3583984375,
+  "inference_batch_size": 1,
+  "average_inference_latency_ms": 0.11179989000083879,
+  "training_history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.36486896468400953,
+      "val_loss": 0.13796161346435548,
+      "val_accuracy_percent": 95.76
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.0917105652754957,
+      "val_loss": 0.07679378473758698,
+      "val_accuracy_percent": 97.74
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.06256331569660793,
+      "val_loss": 0.06927952320575714,
+      "val_accuracy_percent": 97.9
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.04811689623485912,
+      "val_loss": 0.05851860946416855,
+      "val_accuracy_percent": 98.4
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.038583308858424425,
+      "val_loss": 0.052287317115068434,
+      "val_accuracy_percent": 98.48
+    }
+  ]
+}

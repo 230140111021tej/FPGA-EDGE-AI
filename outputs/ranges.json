@@ -1,0 +1,81 @@
+{
+  "features.0": {
+    "output_min": -1.7341536283493042,
+    "output_max": 2.1746950149536133,
+    "output_abs_max": 2.1746950149536133,
+    "layer_type": "Conv2d",
+    "weight_shape": [
+      16,
+      1,
+      3,
+      3
+    ],
+    "weight_min": -0.7541368007659912,
+    "weight_max": 0.5717248916625977,
+    "weight_abs_max": 0.7541368007659912,
+    "weight_abs_p99": 0.5877024531364441,
+    "bias_abs_max": 0.2933341860771179
+  },
+  "features.1": {
+    "output_min": 0.0,
+    "output_max": 2.1746950149536133,
+    "output_abs_max": 2.1746950149536133
+  },
+  "features.3": {
+    "output_min": -9.06283187866211,
+    "output_max": 6.421261310577393,
+    "output_abs_max": 9.06283187866211,
+    "layer_type": "Conv2d",
+    "weight_shape": [
+      32,
+      16,
+      3,
+      3
+    ],
+    "weight_min": -0.524859607219696,
+    "weight_max": 0.5054484605789185,
+    "weight_abs_max": 0.524859607219696,
+    "weight_abs_p99": 0.3422139585018158,
+    "bias_abs_max": 0.12568378448486328
+  },
+  "features.4": {
+    "output_min": 0.0,
+    "output_max": 6.421261310577393,
+    "output_abs_max": 6.421261310577393
+  },
+  "classifier.1": {
+    "output_min": -30.6938419342041,
+    "output_max": 27.94095802307129,
+    "output_abs_max": 30.6938419342041,
+    "layer_type": "Linear",
+    "weight_shape": [
+      64,
+      1568
+    ],
+    "weight_min": -0.36721405386924744,
+    "weight_max": 0.36458033323287964,
+    "weight_abs_max": 0.36721405386924744,
+    "weight_abs_p99": 0.141998752951622,
+    "bias_abs_max": 0.05621946603059769
+  },
+  "classifier.2": {
+    "output_min": 0.0,
+    "output_max": 27.94095802307129,
+    "output_abs_max": 27.94095802307129
+  },
+  "classifier.3": {
+    "output_min": -23.93543815612793,
+    "output_max": 22.260112762451172,
+    "output_abs_max": 23.93543815612793,
+    "layer_type": "Linear",
+    "weight_shape": [
+      10,
+      64
+    ],
+    "weight_min": -0.3277706503868103,
+    "weight_max": 0.2661310136318207,
+    "weight_abs_max": 0.3277706503868103,
+    "weight_abs_p99": 0.24595557153224945,
+    "bias_abs_max": 0.12124789506196976
+  }
+}

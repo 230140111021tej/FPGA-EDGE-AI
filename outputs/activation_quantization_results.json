@@ -1,0 +1,19 @@
+{
+  "method": "per-layer INT8 weight rounding and unsigned 8-bit fake quantization of activations",
+  "baseline_test_accuracy_percent": 98.56,
+  "quantized_test_accuracy_percent": 98.56,
+  "accuracy_change_percentage_points": 0.0,
+  "activation_max_values": {
+    "input": 1.0,
+    "after_pool1": 2.1746950149536133,
+    "after_pool2": 6.421261310577393,
+    "after_relu_fc1": 27.94095802307129
+  },
+  "weight_scales": {
+    "features.0": 0.0059380850454015055,
+    "features.3": 0.004132752812753512,
+    "classifier.1": 0.0028914492430649405,
+    "classifier.3": 0.00258087126288827
+  },
+  "test_samples": 10000
+}

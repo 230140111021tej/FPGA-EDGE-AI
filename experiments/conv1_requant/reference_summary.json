@@ -1,0 +1,15 @@
+{
+  "image_shape": [
+    28,
+    28
+  ],
+  "filter_count": 16,
+  "positions_per_filter": 784,
+  "total_outputs": 12544,
+  "accumulator_min": -65555,
+  "accumulator_max": 75727,
+  "negative_accumulators": 4312,
+  "zero_outputs": 4336,
+  "saturated_outputs": 0,
+  "test_seed": 20261015
+}

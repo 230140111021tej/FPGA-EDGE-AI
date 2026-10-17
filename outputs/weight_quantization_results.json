@@ -1,0 +1,36 @@
+{
+  "method": "per-layer symmetric INT8 weights; float activations",
+  "baseline_test_accuracy_percent": 98.56,
+  "quantized_weight_test_accuracy_percent": 98.55,
+  "accuracy_change_percentage_points": -0.010000000000005116,
+  "changed_predictions_vs_baseline": 1,
+  "test_samples": 10000,
+  "layers": {
+    "features.0": {
+      "max_abs_error": 0.002962253987789154,
+      "mean_abs_error": 0.001586574362590909,
+      "scale": 0.0059380850454015055,
+      "weight_count": 144
+    },
+    "features.3": {
+      "max_abs_error": 0.0020661912858486176,
+      "mean_abs_error": 0.0010466380044817924,
+      "scale": 0.004132752812753512,
+      "weight_count": 4608
+    },
+    "classifier.1": {
+      "max_abs_error": 0.0014457236975431442,
+      "mean_abs_error": 0.0007234322838485241,
+      "scale": 0.0028914492430649405,
+      "weight_count": 100352
+    },
+    "classifier.3": {
+      "max_abs_error": 0.0012882975861430168,
+      "mean_abs_error": 0.0006246009725145996,
+      "scale": 0.00258087126288827,
+      "weight_count": 640
+    }
+  },
+  "integer_weights_file": "outputs/weights_int8.pt",
+  "scales_file": "outputs/weight_scales.json"
+}
