@@ -12,3 +12,11 @@ vivado_shared_mac_gui/
 *.backup.*
 
 data/MNIST/raw/
+
+# Generated FPGA and simulation artifacts
+*.dcp
+*.vvp
+*.jou
+*.log
+
+# Keep only explicitly selected bitstreams if needed
