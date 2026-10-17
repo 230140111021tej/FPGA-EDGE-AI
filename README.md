@@ -87,6 +87,15 @@ The DSP-based implementation reduced the reported LUT and flip-flop usage for th
 
 These figures are specific to the tested designs and tool configuration; they should not be generalized to the full CNN datapath.
 
+### Detailed Vivado Reports
+
+The following reports contain the detailed implementation results for the DSP-based MAC demonstration.
+
+- **[View FPGA Resource Utilization](images/vivado_utilization.rpt)** — LUT, flip-flop, DSP48E1, and other resource utilization.
+- **[View Timing Summary](images/vivado_timing.rpt)** — timing results and constraints reported by Vivado.
+
+**Note:** These reports describe the MAC demonstration, not the complete CNN accelerator. The timing reports have missing external I/O delay constraints, so they do not establish full interface timing closure.
+
 ## Verification Approach
 
 Verification activities include:
